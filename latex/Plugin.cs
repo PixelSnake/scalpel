@@ -69,33 +69,47 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
                 \subsection{" + TexEscape(c.Name) + @"}
                 \label{class-id:" + c.Id + @"}
                     " + texAttributes(c) + @"
-                    \colorbox{lightgray}{
-		            \begin{tabularx}{\textwidth}{Xr}
-			            " + (c.Info.Author != null ? @"\textbf{Author} & \code{Thomas Neumüller} \\ \hline" : "") + @"
-			            " + texDerivesFrom(c) + @"
-		            \end{tabularx}
-                    }
+                    " + texBasicInfo(c) + @"
 		
 		            " + texSummary(c) + @"
                     " + texTypeParameters(c) + @"
+                \vspace{1cm}
 ";
         }
         return tex;
 
         #region Local Functions
-        string texDerivesFrom(Class c)
+        string texBasicInfo(Class c)
         {
-            if (c.BaseClasses == null || c.BaseClasses.Length == 0) return "";
+            var basicTex = @"
+                \mbox{} \\
+                \colorbox{lightgray}
+                {
+		            \begin{tabularx}{\textwidth}{ Xr}            
+            ";
+            var content = "";
 
-            var first = true;
-            var deriveTex = "";
+            if (c.Info.Author != null)
+                content += c.Info.Author != null ? @"\textbf{Author} & " + c.Info.Author + @" \\ \hline" : "";
+            content += texBaseClasses();
 
-            foreach (var bc in c.BaseClasses)
+            if (content.Length < 1) return "";
+            return basicTex + content + @"\end{tabularx}}" + "\n";
+
+            string texBaseClasses()
             {
-                deriveTex += (first ? @"\textbf{Derives from}" : "") + @"& \code{" + bc + @"} \\";
-                first = false;
+                if (c.BaseClasses == null || c.BaseClasses.Length == 0) return "";
+
+                var first = true;
+                var deriveTex = "";
+
+                foreach (var bc in c.BaseClasses)
+                {
+                    deriveTex += (first ? @"\textbf{Derives from}" : "") + @"& \code{" + bc + @"} \\";
+                    first = false;
+                }
+                return deriveTex;
             }
-            return deriveTex;
         }
 
         string texAttributes(Class c)
@@ -106,7 +120,7 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
             if (c.AccessLevel != "") attrTex += @"\colorbox{" + GetAccessLevelColor(c.AccessLevel) + @"}{\color{white}\textbf{\strut " + c.AccessLevel + @"}}" + "\n";
             if (c.Modifier != "") attrTex += @"\colorbox{MidnightBlue}{\color{white}\textbf{\strut " + c.Modifier + @"}}" + "\n";
 
-            return attrTex + (attrTex.Length > 0 ? @"\\\\" : "");
+            return attrTex;
 
             string GetAccessLevelColor(string al)
             {
