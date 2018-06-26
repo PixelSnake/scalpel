@@ -71,13 +71,13 @@ namespace Scalpel.DocParser
             {
                 lastTimeWasSuccessful = m.Success;
 
-                if (!lastTimeWasSuccessful || pos < m.Index && pos != 0)
+                if (!lastTimeWasSuccessful || (pos < m.Index && pos != 0))
                 {
                     // now comes what is documented by currentComment. Maybe a class, declaration, etc.
                     var nextLineMatch = regexLine.Match(content, pos);
 
                     Interchangeable.IInterchangeable next;
-                    if ((next = ParseNextClass(content, pos, currentComment)) != null)
+                    if ((next = ParseNextClass(nextLineMatch.Value, currentComment)) != null)
                         classes.Add(next as Interchangeable.Class);
 
                     currentComment = "";
@@ -98,7 +98,7 @@ namespace Scalpel.DocParser
             };
         }
 
-        protected Interchangeable.Class ParseNextClass(string content, int pos, string docComment)
+        protected Interchangeable.Class ParseNextClass(string content, string docComment)
         {
             var regex = new Regex(rxClassDefinition);
             Match m;
@@ -113,16 +113,17 @@ namespace Scalpel.DocParser
             }
             catch (XmlException) { }
 
-            if ((m = regex.Match(content, pos)).Success)
+            if ((m = regex.Match(content)).Success)
             {
                 var typeParams = m.Groups[7].Value.Split(',').Select(c => c.Trim()).ToArray();
+                var baseClasses = m.Groups[10].Value.Split(',').Select(c => c.Trim()).ToArray();
 
                 var _class = new Interchangeable.Class()
                 {
                     AccessLevel = m.Groups[1].Value.Trim(),
                     Modifier = m.Groups[2].Value.Trim(),
                     Name = m.Groups[4].Value.Trim(),
-                    BaseClasses = m.Groups[10].Value.Split(',').Select(c => c.Trim()).ToArray(),
+                    BaseClasses = baseClasses == null || baseClasses.Length < 1 || baseClasses[0] == "" ? null : baseClasses,
                     TypeParams = typeParams == null || typeParams.Length < 1 || typeParams[0] == "" ? null : typeParams,
 
                     Info = xmlDoc != null ? ParseDocComment(xmlDoc) : null
