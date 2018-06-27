@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Scalpel.Interchangeable;
+using ScalpelPlugin.Syntax.Elements;
 
 public class Plugin : ScalpelPlugin.Plugins.Plugin
 {
@@ -38,9 +39,12 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
             \usepackage[dvipsnames]{xcolor}
             \usepackage{tikz}
             \usepackage{gensymb}
+            \usepackage{hyperref}
             \usetikzlibrary{automata,positioning}
 
-            \def\code#1{\texttt{#1}}
+            \def\code#1{\texttt{\colorbox{LightLightGray}{#1}}}
+            
+            \definecolor{LightLightGray}{rgb}{0.9,0.9,0.9}
 
             \begin{document}
 
@@ -74,7 +78,7 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
 		            " + texSummary(c) + @"
                     " + texTypeParameters(c) + @"
                 \vspace{1cm}
-";
+            ";
         }
         return tex;
 
@@ -83,7 +87,7 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
         {
             var basicTex = @"
                 \mbox{} \\
-                \colorbox{lightgray}
+                \colorbox{LightLightGray}
                 {
 		            \begin{tabularx}{\textwidth}{ Xr}            
             ";
@@ -105,7 +109,10 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
 
                 foreach (var bc in c.BaseClasses)
                 {
-                    deriveTex += (first ? @"\textbf{Derives from}" : "") + @"& \code{" + bc + @"} \\";
+                    var bcRef = Class.ByName.ContainsKey(bc) ? Class.ByName[bc] : null;
+
+                    deriveTex += (first ? @"\textbf{Derives from}" : "") +
+                        (bcRef == null ? @"& " + bc + @" \\" : @"& \hyperref[class-id:" + bcRef.Id + @"]{\color{MidnightBlue}" + bc + @"} \\");
                     first = false;
                 }
                 return deriveTex;
@@ -142,7 +149,7 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
         string texSummary(Class c)
         {
             if (c.Info.Summary.Length == 0) return "";
-            return @"\subsubsection{Summary}" + c.Info.Summary;
+            return @"\subsubsection{Summary}" + TexifyFormattedText(c.Info.Summary);
         }
 
         string texTypeParameters(Class c)
@@ -169,5 +176,48 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
             .Replace(@"%", @"\%")
             .Replace("<", @"\textless ")
             .Replace(">", @"\textgreater ");
+    }
+
+    string TexifyFormattedText(ScalpelPlugin.Syntax.FormattedText ft)
+    {
+        var tex = "";
+
+        foreach (var elem in ft.Children)
+        {
+            if (elem == null) continue;
+
+            if (elem is Text) tex += (elem as Text).Value;
+            else if (elem is List)
+            {
+                var list = elem as List;
+                if (list.Items.Length < 1) continue;
+
+                var type = "itemize";
+                switch (list.Type)
+                {
+                    case List.ListType.Number: type = "enumerate"; break;
+                    case List.ListType.Table: type = "tabular"; break;
+                }
+
+                tex += @"\begin{" + type + @"}" + (list.Type == List.ListType.Table ? "{l}" : "") + "\n";
+                tex += String.Join("\n", list.Items.Select(i => (list.Type != List.ListType.Table ? @"\item " : "") + TexifyFormattedText(i) + (list.Type == List.ListType.Table ? @"\\ \hline" : "")));
+                tex += @"\end{" + type + @"}" + "\n";
+            }
+            else if (elem is CodeReference)
+            {
+                if (elem is ClassReference)
+                {
+                    var cr = elem as ClassReference;
+                    tex += @"\hyperref[class-id:" + cr.Class.Id + @"]{\color{MidnightBlue}" + cr.Class.Name + @"}";
+                }
+            }
+            else if (elem is InlineCode)
+            {
+                var code = elem as InlineCode;
+                tex += @"\code{" + TexEscape(code.Value) + @"}";
+            }
+        }
+
+        return tex;
     }
 }

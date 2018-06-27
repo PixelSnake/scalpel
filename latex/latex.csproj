@@ -45,7 +45,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ScalpelPlugin\ScalpelPlugin.csproj">
-      <Project>{2b8ce61f-623e-4f7a-8916-9b5275fffa29}</Project>
+      <Project>{b681f6dc-d3f7-416c-aefe-9016af497fe8}</Project>
       <Name>ScalpelPlugin</Name>
     </ProjectReference>
   </ItemGroup>

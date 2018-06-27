@@ -8,7 +8,6 @@ namespace Scalpel.Interchangeable
 {
     public class DocumentationInfo
     {
-        public System.Xml.XmlElement UnparsedSummary;
         public ScalpelPlugin.Syntax.FormattedText Summary;
         public string Author;
         public Dictionary<string, string> TypeParamDescription;

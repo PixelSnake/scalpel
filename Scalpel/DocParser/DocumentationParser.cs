@@ -28,6 +28,9 @@ namespace Scalpel.DocParser
         {
             var files = SearchDirectory(InDir);
 
+            foreach (var file in files)
+                FinalizeClasses(file.Classes);
+
             return new Interchangeable.Documentation()
             {
                 Files = files.ToArray()
@@ -128,10 +131,22 @@ namespace Scalpel.DocParser
 
                     Info = xmlDoc != null ? ParseDocComment(xmlDoc) : null
                 };
+                Interchangeable.Class.ByName.Add(_class.Name, _class);
+
                 return _class;
             }
 
             return null;
+        }
+
+        protected void FinalizeClasses(IEnumerable<Scalpel.Interchangeable.Class> classes)
+        {
+            foreach (var c in classes)
+            {
+                if (c.Info.UnparsedSummary == null) continue;
+                c.Info.Summary = ScalpelPlugin.Syntax.FormattedText.Parse(c.Info?.UnparsedSummary);
+                c.Info.UnparsedSummary = null;
+            }
         }
 
         protected Interchangeable.DocumentationInfo ParseDocComment(XmlDocument xml)
@@ -145,7 +160,7 @@ namespace Scalpel.DocParser
 
             return new Interchangeable.DocumentationInfo()
             {
-                Summary = xml["doc"]["summary"]?.InnerText.Trim(),
+                UnparsedSummary = xml["doc"]["summary"],
                 Author = xml["doc"]["author"]?.InnerText.Trim(),
 
                 TypeParamDescription = typeParamDescr
