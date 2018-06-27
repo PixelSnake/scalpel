@@ -10,5 +10,6 @@ namespace Scalpel.Interchangeable
     {
         public string Path;
         public Class[] Classes;
+        public Function[] Functions;
     }
 }

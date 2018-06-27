@@ -9,6 +9,9 @@ using System.Xml;
 
 namespace Scalpel.DocParser
 {
+    /// <summary>
+    /// Parses the documentation comments out of the source code
+    /// </summary>
     public class DocumentationParser
     {
         protected string InDir;
@@ -16,6 +19,7 @@ namespace Scalpel.DocParser
 
         protected string rxDocComment = @"\/\/\/(.*?)\s*(\n\r?)\s*";
         protected string rxClassDefinition = @"(public|protected|internal|private)?(\s*abstract|sealed)?\s+(class)\s+(([\w]+)(\s*<\s*([\w]+,?)+\s*>)?)(\s*:((\s*[\w]+)(\s*,\s*[\w]+)*)?)?\s*";
+        protected string rxFunctionDefinition = @"(public|protected|internal|private)\s+((abstract|override|new)\s+)?([\w\.]+)\s+([\w]+)(\s*<(\s*(\s*[\w]+\s*,?)+\s*)>)?\(";
         protected string rxLine = @"(.*?)\n\r?";
 
         public DocumentationParser(string inDir, string[] filetypes)
@@ -24,12 +28,16 @@ namespace Scalpel.DocParser
             Filetypes = filetypes;
         }
 
+        /// <summary>
+        /// Parses the documentation of the input directory specified in the constructor
+        /// </summary>
+        /// <returns>The parsed documentation in the form of an <see cref="Interchangeable.Documentation"/> instance</returns>
         public Interchangeable.Documentation Parse()
         {
             var files = SearchDirectory(InDir);
 
             foreach (var file in files)
-                FinalizeClasses(file.Classes);
+                FinalizeClasses(file.Classes, file.Functions);
 
             return new Interchangeable.Documentation()
             {
@@ -64,6 +72,7 @@ namespace Scalpel.DocParser
             var regexLine = new Regex(rxLine);
 
             var classes = new List<Interchangeable.Class>();
+            var functions = new List<Interchangeable.Function>();
 
             Match m;
             int pos = 0;
@@ -82,6 +91,8 @@ namespace Scalpel.DocParser
                     Interchangeable.IInterchangeable next;
                     if ((next = ParseNextClass(nextLineMatch.Value, currentComment)) != null)
                         classes.Add(next as Interchangeable.Class);
+                    else if ((next = ParseNextFunction(nextLineMatch.Value, currentComment)) != null)
+                        functions.Add(next as Interchangeable.Function);
 
                     currentComment = "";
                 }
@@ -97,8 +108,45 @@ namespace Scalpel.DocParser
             {
                 Path = path,
                 Classes = classes.ToArray(),
-                
+                Functions = functions.ToArray()
             };
+        }
+
+        protected Interchangeable.Function ParseNextFunction(string content, string docComment)
+        {
+            var regex = new Regex(rxFunctionDefinition);
+            Match m;
+
+            XmlDocument xmlDoc = null;
+            docComment = $"<doc>{docComment}</doc>";
+
+            try
+            {
+                xmlDoc = new XmlDocument();
+                xmlDoc.LoadXml(docComment);
+            }
+            catch (XmlException) { }
+
+            if ((m = regex.Match(content)).Success)
+            {
+                var typeParams = m.Groups[7].Value.Split(',').Select(c => c.Trim()).ToArray();
+
+                var func = new Interchangeable.Function()
+                {
+                    AccessLevel = m.Groups[1].Value.Trim(),
+                    Modifier = m.Groups[2].Value.Trim(),
+                    ReturnTypeUnparsed = m.Groups[4].Value.Trim(),
+                    Name = m.Groups[5].Value.Trim(),
+                    TypeParams = typeParams == null || typeParams.Length < 1 || typeParams[0] == "" ? null : typeParams,
+
+                    Info = xmlDoc != null ? ParseDocComment(xmlDoc) : null
+                };
+                Interchangeable.Function.ByName.Add(func.Name, func);
+
+                return func;
+            }
+
+            return null;
         }
 
         protected Interchangeable.Class ParseNextClass(string content, string docComment)
@@ -139,13 +187,20 @@ namespace Scalpel.DocParser
             return null;
         }
 
-        protected void FinalizeClasses(IEnumerable<Scalpel.Interchangeable.Class> classes)
+        protected void FinalizeClasses(IEnumerable<Interchangeable.Class> classes, IEnumerable<Interchangeable.Function> functions)
         {
             foreach (var c in classes)
             {
                 if (c.Info.UnparsedSummary == null) continue;
-                c.Info.Summary = ScalpelPlugin.Syntax.FormattedText.Parse(c.Info?.UnparsedSummary);
+                c.Info.Summary = ScalpelPlugin.Syntax.FormattedText.Parse(c.Info.UnparsedSummary);
                 c.Info.UnparsedSummary = null;
+            }
+
+            foreach (var f in functions)
+            {
+                if (f.Info.UnparsedSummary == null) continue;
+                f.Info.Summary = ScalpelPlugin.Syntax.FormattedText.Parse(f.Info.UnparsedSummary);
+                f.Info.UnparsedSummary = null;
             }
         }
 
