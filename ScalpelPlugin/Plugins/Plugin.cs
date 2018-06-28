@@ -6,6 +6,6 @@ namespace ScalpelPlugin.Plugins
 {
     public interface Plugin
     {
-        void Convert(Scalpel.Interchangeable.Documentation documentation, string outPath);
+        void Convert(PluginParams p);
     }
 }

@@ -4,10 +4,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Scalpel.Plugins
+namespace ScalpelPlugin.Plugins
 {
     public class PluginParams
     {
-        public Interchangeable.Documentation Documentation;
+        public Scalpel.Interchangeable.Documentation Documentation;
+        public string TargetDirectory;
+        public string[] Arguments;
     }
 }
