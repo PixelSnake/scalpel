@@ -45,8 +45,6 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
             Console.WriteLine("Opening PDF file at " + pdfPath);
             System.Diagnostics.Process.Start(pdfPath);
         }
-
-        Console.ReadKey();
     }
 
     internal void ParseArguments(string[] args)
