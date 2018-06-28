@@ -92,7 +92,7 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
             {
                 var c = dt as Class;
                 tex += @"
-                    \subsection{class " + TexEscape(c.Name) + @"}
+                    \subsection{class " + TexEscape(c.Name) + (c.TypeParams.Length > 0 ? $"\\textless { String.Join(", ", c.TypeParams) }\\textgreater " : "") + @"}
                     \label{type:" + c.ToString() + @"}
                         " + texAttributes(c) + @"
                         " + texBasicInfo(c) + @"
