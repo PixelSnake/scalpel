@@ -3,30 +3,76 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Scalpel.Interchangeable;
+using ScalpelPlugin.Plugins;
 using ScalpelPlugin.Syntax.Elements;
 
 public class Plugin : ScalpelPlugin.Plugins.Plugin
 {
-    public void Convert(Documentation documentation, string outPath)
+    bool OpenFile = false;
+
+    public void Convert(PluginParams p)
     {
+        var documentation = p.Documentation;
+        ParseArguments(p.Arguments);
+
         documentation.Namespaces = documentation.Namespaces.OrderBy(ns => ns.Name).ToArray();
         foreach (var ns in documentation.Namespaces)
             ns.Datatypes = ns.Datatypes.OrderBy(d => d.Name).ToArray();
 
         var tex = DocumentHeader() + TexifyDocumentation(documentation) + DocumentFooter();
 
-        System.IO.Directory.CreateDirectory(outPath);
+        System.IO.Directory.CreateDirectory(p.TargetDirectory);
 
-        var texPath = System.IO.Path.Combine(outPath, "out.tex");
+        var texPath = System.IO.Path.Combine(p.TargetDirectory, "out.tex");
         System.IO.File.WriteAllText(texPath, tex);
 
         var startInfo = new System.Diagnostics.ProcessStartInfo();
         startInfo.Arguments = "out.tex";
         startInfo.FileName = "pdflatex";
-        startInfo.WorkingDirectory = outPath;
-        System.Diagnostics.Process.Start(startInfo);
+        startInfo.WorkingDirectory = p.TargetDirectory;
 
-        Console.WriteLine($"Saved PDF at { outPath }");
+        /* twice for robustness */
+        var pdflatex = System.Diagnostics.Process.Start(startInfo);
+        pdflatex.WaitForExit();
+        pdflatex = System.Diagnostics.Process.Start(startInfo);
+        pdflatex.WaitForExit();
+
+        Console.WriteLine($"Saved PDF at { p.TargetDirectory }");
+
+        if (OpenFile)
+        {
+            var pdfPath = System.IO.Path.Combine(p.TargetDirectory, "out.pdf");
+            Console.WriteLine("Opening PDF file at " + pdfPath);
+            System.Diagnostics.Process.Start(pdfPath);
+        }
+
+        Console.ReadKey();
+    }
+
+    internal void ParseArguments(string[] args)
+    {
+        for (var i = 0; i < args.Length; ++i)
+        {
+            var p = args[i];
+
+            switch (p)
+            {
+                default:
+                    Console.WriteLine($"Unrecongnized flag \"{ p }\"");
+                    PrintUsage();
+                    break;
+
+                case "-o":
+                case "--open":
+                    OpenFile = true;
+                    break;
+            }
+        }
+    }
+
+    internal void PrintUsage()
+    {
+
     }
 
     internal string DocumentHeader()
