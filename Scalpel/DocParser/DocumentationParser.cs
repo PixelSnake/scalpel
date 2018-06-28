@@ -124,7 +124,14 @@ namespace Scalpel.DocParser
             {
                 if ((m = regexClass.Match(content, pos)).Success)
                 {
-                    var start = m.Index + m.Length;
+                    var lineBeginPos = content.LastIndexOf('\n', m.Index);
+                    if (lineBeginPos >= 0 && content.Substring(lineBeginPos, m.Index - lineBeginPos).Trim().StartsWith("//"))
+                    {
+                        pos = m.Index + m.Length;
+                        continue;
+                    }
+
+                    var start = content.IndexOf('{', m.Index + m.Length);
                     var end = FindClosingScope(content, start);
 
                     var inner = content.Substring(start + 1, end - start - 1);
@@ -169,7 +176,7 @@ namespace Scalpel.DocParser
             foreach (var l in linesBefore)
             {
                 if (l.StartsWith("[") && l.EndsWith("]")) continue; // Attribute
-                if (l.StartsWith("///")) comment = l.Substring(3).Trim() + comment;
+                if (l.StartsWith("///")) comment = l.Substring(3).Trim() + "\n" + comment;
                 else break;
             }
 
@@ -243,11 +250,10 @@ namespace Scalpel.DocParser
                 if (dt is Interchangeable.Class)
                 {
                     var c = dt as Interchangeable.Class;
-                    var absoluteName = $"{ ns.Name }.{ c.Name }";
-                    if (Interchangeable.Class.ByName.ContainsKey(absoluteName))
-                        throw new ApplicationException($"Duplicate type names: { absoluteName }");
-                    Interchangeable.Class.ByName.Add(absoluteName, c);
                     c.Namespace = ns;
+                    if (Interchangeable.Class.ByName.ContainsKey(dt.ToString()))
+                        throw new ApplicationException($"Duplicate type names: { dt.ToString() }");
+                    Interchangeable.Class.ByName.Add(dt.ToString(), c);
                 }
             }
 
@@ -295,9 +301,4 @@ namespace Scalpel.DocParser
             };
         }
     }
-}
-
-namespace test.hallo
-{
-
 }

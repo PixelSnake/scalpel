@@ -8,6 +8,7 @@ namespace Scalpel.Interchangeable
 {
     public abstract class Datatype : IInterchangeable
     {
+        public string Name;
         public DocumentationInfo Info { get; set; }
         public Namespace Namespace { get; set; }
     }

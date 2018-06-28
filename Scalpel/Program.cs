@@ -85,16 +85,19 @@ namespace Scalpel
             var parser = new DocParser.DocumentationParser(ProjectFolder, Filetypes);
             var docs = parser.Parse();
 
-            /*
             foreach (var f in docs.Namespaces)
             {
-                if (f.Classes.Length > 0) Console.WriteLine(f.Path);
-                foreach (var c in f.Classes)
+                if (f.Datatypes.Length > 0) Console.WriteLine(f.Name);
+                foreach (var c in f.Datatypes)
                 {
-                    Console.WriteLine($"{ c.AccessLevel } { c.Modifier } class { c.Name }");
-                    Console.WriteLine($"Author: { c.Info.Author ?? "?" }");
-                    Console.WriteLine($"Summary: { c.Info.Summary }");
+                    if (c is Interchangeable.Class)
+                    {
+                        var _class = c as Interchangeable.Class;
+                        Console.WriteLine($"\t{ _class.AccessLevel } { _class.Modifier } class { _class.Name }");
+                        Console.WriteLine($"\t\tSummary: { _class.Info.Summary }");
+                    }
                 }
+                Console.WriteLine();
             }
 
             Formatter.Convert(docs, OutFolder);
@@ -102,7 +105,6 @@ namespace Scalpel
             Console.WriteLine("");
             Console.WriteLine("Press any key to exit...");
             Console.ReadKey();
-            */
         }
 
         static void PrintUsage()

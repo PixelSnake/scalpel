@@ -8,11 +8,9 @@ namespace Scalpel.Interchangeable
 {
     public class Class : Datatype
     {
-        public static int ClassId = 0;
         public static Dictionary<string, Class> ByName = new Dictionary<string, Class>();
 
-        public int Id = ClassId++;
-        public string AccessLevel, Modifier, Name;
+        public string AccessLevel, Modifier;
         public string[] BaseClasses, TypeParams;
 
         public Function[] Functions;
@@ -21,7 +19,7 @@ namespace Scalpel.Interchangeable
 
         public override string ToString()
         {
-            return $"{ Namespace.Name + "." ?? "??." }{ Name }";
+            return (Namespace.Name.Length > 0 ? Namespace.Name + "." : "") + Name;
         }
     }
 }

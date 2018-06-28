@@ -9,17 +9,22 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
 {
     public void Convert(Documentation documentation, string outPath)
     {
-        var classes = new List<Class>();
-        // foreach (var f in documentation.Files) classes.AddRange(f.Classes);
-        classes = classes.OrderBy(c => c.Name).ToList();
+        documentation.Namespaces = documentation.Namespaces.OrderBy(ns => ns.Name).ToArray();
+        foreach (var ns in documentation.Namespaces)
+            ns.Datatypes = ns.Datatypes.OrderBy(d => d.Name).ToArray();
 
-        var tex = DocumentHeader() + TexifyClasses(classes) + DocumentFooter();
+        var tex = DocumentHeader() + TexifyDocumentation(documentation) + DocumentFooter();
 
         System.IO.Directory.CreateDirectory(outPath);
 
         var texPath = System.IO.Path.Combine(outPath, "out.tex");
         System.IO.File.WriteAllText(texPath, tex);
-        System.Diagnostics.Process.Start("pdflatex", texPath);
+
+        var startInfo = new System.Diagnostics.ProcessStartInfo();
+        startInfo.Arguments = "out.tex";
+        startInfo.FileName = "pdflatex";
+        startInfo.WorkingDirectory = outPath;
+        System.Diagnostics.Process.Start(startInfo);
 
         Console.WriteLine($"Saved PDF at { outPath }");
     }
@@ -63,22 +68,40 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
         return @"\end{document}";
     }
 
-    internal string TexifyClasses(IList<Class> classes)
+    internal string TexifyDocumentation(Documentation doc)
     {
-        var tex = "\\section{Classes}\n";
+        var tex = "";
 
-        foreach (var c in classes)
+        foreach (var ns in doc.Namespaces)
         {
-            tex += @"
-                \subsection{" + TexEscape(c.Name) + @"}
-                \label{class-id:" + c.Id + @"}
-                    " + texAttributes(c) + @"
-                    " + texBasicInfo(c) + @"
+            if (ns.Name.Length > 0) tex += @"\section{namespace " + ns.Name + "}\n";
+            else tex += @"\section{Global}" + "\n";
+            tex += TexifyDatatypes(ns.Datatypes, ns);
+        }
+
+        return tex;
+    }
+
+    internal string TexifyDatatypes(Datatype[] dtypes, Namespace ns)
+    {
+        var tex = "";
+
+        foreach (var dt in dtypes)
+        {
+            if (dt is Class)
+            {
+                var c = dt as Class;
+                tex += @"
+                    \subsection{class " + TexEscape(c.Name) + @"}
+                    \label{type:" + c.ToString() + @"}
+                        " + texAttributes(c) + @"
+                        " + texBasicInfo(c) + @"
 		
-		            " + texSummary(c) + @"
-                    " + texTypeParameters(c) + @"
-                \vspace{1cm}
-            ";
+		                " + texSummary(c) + @"
+                        " + texTypeParameters(c) + @"
+                    \vspace{1cm}
+                ";
+            }
         }
         return tex;
 
@@ -109,10 +132,11 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
 
                 foreach (var bc in c.BaseClasses)
                 {
-                    var bcRef = Class.ByName.ContainsKey(bc) ? Class.ByName[bc] : null;
+                    var absoluteName = (ns.Name.Length > 0 ? ns.Name + "." : "") + bc;
+                    var bcRef = Class.ByName.ContainsKey(absoluteName) ? Class.ByName[absoluteName] : null;
 
                     deriveTex += (first ? @"\textbf{Derives from}" : "") +
-                        (bcRef == null ? @"& " + bc + @" \\" : @"& \hyperref[class-id:" + bcRef.Id + @"]{\color{MidnightBlue}" + bc + @"} \\");
+                        (bcRef == null ? @"& " + bc + @" \\" : @"& " + CodeRef(bcRef, ns) + @"\\");
                     first = false;
                 }
                 return deriveTex;
@@ -124,8 +148,8 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
             var attrTex = "";
 
             if (c.IsGeneric) attrTex += @"\colorbox{RedOrange}{\color{white}\textbf{\strut generic}}" + "\n";
-            if (c.AccessLevel != "") attrTex += @"\colorbox{" + GetAccessLevelColor(c.AccessLevel) + @"}{\color{white}\textbf{\strut " + c.AccessLevel + @"}}" + "\n";
-            if (c.Modifier != "") attrTex += @"\colorbox{MidnightBlue}{\color{white}\textbf{\strut " + c.Modifier + @"}}" + "\n";
+            if (c.AccessLevel != null) attrTex += @"\colorbox{" + GetAccessLevelColor(c.AccessLevel) + @"}{\color{white}\textbf{\strut " + c.AccessLevel + @"}}" + "\n";
+            if (c.Modifier != null) attrTex += @"\colorbox{MidnightBlue}{\color{white}\textbf{\strut " + c.Modifier + @"}}" + "\n";
 
             return attrTex;
 
@@ -148,8 +172,9 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
 
         string texSummary(Class c)
         {
+            if (c.Info?.Summary == null) return "";
             if (c.Info.Summary.Length == 0) return "";
-            return @"\subsubsection{Summary}" + TexifyFormattedText(c.Info.Summary);
+            return @"\subsubsection{Summary}" + TexifyFormattedText(c.Info.Summary, ns);
         }
 
         string texTypeParameters(Class c)
@@ -168,17 +193,28 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
         #endregion
     }
 
+    internal string CodeRef(Datatype dtype, Namespace currentNamespace = null)
+    {
+        var cr = Hyperref("type:" + dtype.ToString(), (dtype.Namespace == currentNamespace ? "" : dtype.Namespace.Name) + dtype.Name);
+        return cr;
+    }
+    internal string Hyperref(string label, string text)
+    {
+        var hr = @"\hyperref[" + label + @"]{\color{MidnightBlue}" + text + "}";
+        return hr;
+    }
+
     string TexEscape(string s)
     {
         return s
             .Replace("_", @"\_")
             .Replace(@"\", @"\\")
-            .Replace(@"%", @"\%")
+            .Replace("%", @"\%")
             .Replace("<", @"\textless ")
             .Replace(">", @"\textgreater ");
     }
 
-    string TexifyFormattedText(ScalpelPlugin.Syntax.FormattedText ft)
+    string TexifyFormattedText(ScalpelPlugin.Syntax.FormattedText ft, Namespace currentNamespace)
     {
         var tex = "";
 
@@ -200,7 +236,7 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
                 }
 
                 tex += @"\begin{" + type + @"}" + (list.Type == List.ListType.Table ? "{l}" : "") + "\n";
-                tex += String.Join("\n", list.Items.Select(i => (list.Type != List.ListType.Table ? @"\item " : "") + TexifyFormattedText(i) + (list.Type == List.ListType.Table ? @"\\ \hline" : "")));
+                tex += String.Join("\n", list.Items.Select(i => (list.Type != List.ListType.Table ? @"\item " : "") + TexifyFormattedText(i, currentNamespace) + (list.Type == List.ListType.Table ? @"\\ \hline" : "")));
                 tex += @"\end{" + type + @"}" + "\n";
             }
             else if (elem is CodeReference)
@@ -208,7 +244,7 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
                 if (elem is ClassReference)
                 {
                     var cr = elem as ClassReference;
-                    tex += @"\hyperref[class-id:" + cr.Class.Id + @"]{\color{MidnightBlue}" + cr.Class.Name + @"}";
+                    tex += CodeRef(cr.Class, currentNamespace);
                 }
             }
             else if (elem is InlineCode)
