@@ -8,6 +8,7 @@ namespace Scalpel.Interchangeable
 {
     public interface IInterchangeable
     {
-        DocumentationInfo Info { get; set; }
+        Namespace Namespace { get; }
+        DocumentationInfo Info { get; }
     }
 }

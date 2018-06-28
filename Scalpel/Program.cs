@@ -85,7 +85,8 @@ namespace Scalpel
             var parser = new DocParser.DocumentationParser(ProjectFolder, Filetypes);
             var docs = parser.Parse();
 
-            foreach (var f in docs.Files)
+            /*
+            foreach (var f in docs.Namespaces)
             {
                 if (f.Classes.Length > 0) Console.WriteLine(f.Path);
                 foreach (var c in f.Classes)
@@ -101,6 +102,7 @@ namespace Scalpel
             Console.WriteLine("");
             Console.WriteLine("Press any key to exit...");
             Console.ReadKey();
+            */
         }
 
         static void PrintUsage()

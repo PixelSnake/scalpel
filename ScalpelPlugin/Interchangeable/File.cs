@@ -9,7 +9,6 @@ namespace Scalpel.Interchangeable
     public class File
     {
         public string Path;
-        public Class[] Classes;
         public Function[] Functions;
     }
 }

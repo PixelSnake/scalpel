@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Scalpel.Interchangeable
 {
-    public class Class : IInterchangeable
+    public class Class : Datatype
     {
         public static int ClassId = 0;
         public static Dictionary<string, Class> ByName = new Dictionary<string, Class>();
@@ -15,8 +15,13 @@ namespace Scalpel.Interchangeable
         public string AccessLevel, Modifier, Name;
         public string[] BaseClasses, TypeParams;
 
+        public Function[] Functions;
+
         public bool IsGeneric { get => TypeParams?.Length > 0; }
 
-        public DocumentationInfo Info { get; set; }
+        public override string ToString()
+        {
+            return $"{ Namespace.Name + "." ?? "??." }{ Name }";
+        }
     }
 }

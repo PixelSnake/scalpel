@@ -6,8 +6,9 @@ using System.Threading.Tasks;
 
 namespace Scalpel.Interchangeable
 {
-    public class Documentation
+    public abstract class Datatype : IInterchangeable
     {
-        public Namespace[] Namespaces;
+        public DocumentationInfo Info { get; set; }
+        public Namespace Namespace { get; set; }
     }
 }

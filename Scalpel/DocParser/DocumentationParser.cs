@@ -11,16 +11,18 @@ namespace Scalpel.DocParser
 {
     /// <summary>
     /// Parses the documentation comments out of the source code
+    /// and assigns them to the corresponding classes/functions/etc.
     /// </summary>
     public class DocumentationParser
     {
         protected string InDir;
         protected string[] Filetypes;
 
-        protected string rxDocComment = @"\/\/\/(.*?)\s*(\n\r?)\s*";
-        protected string rxClassDefinition = @"(public|protected|internal|private)?(\s*abstract|sealed)?\s+(class)\s+(([\w]+)(\s*<\s*([\w]+,?)+\s*>)?)(\s*:((\s*[\w]+)(\s*,\s*[\w]+)*)?)?\s*";
-        protected string rxFunctionDefinition = @"(public|protected|internal|private)\s+((abstract|override|new)\s+)?([\w\.]+)\s+([\w]+)(\s*<(\s*(\s*[\w]+\s*,?)+\s*)>)?\(";
-        protected string rxLine = @"(.*?)\n\r?";
+        protected static readonly string rxDocComment = @"\/\/\/(.*?)\s*(\n\r?)\s*";
+        protected static readonly string rxNamespace = @"namespace\s+(([\w]+)(((\s*\.\s*[\w]+)+)?))\s*";
+        protected static readonly string rxClass = @"(public|protected|internal|private)?(\s*(abstract|sealed))?\s+(class)\s+(([\w]+)(\s*<(\s*([\w]+)(\s*,\s*[\w]+)*\s*)>)?)(\s*:((\s*[\w\.]+)(\s*,\s*[\w\.]+)*)?)?\s*";
+        protected static readonly string rxFunctionDefinition = @"([\w]+)\s*(<\s*(([\w\.]+)(\s*,\s*[\w\.]+)*)\s*>)?\s*\(";
+        protected static readonly string rxLine = @"(.*?)\n\r?";
 
         public DocumentationParser(string inDir, string[] filetypes)
         {
@@ -34,24 +36,26 @@ namespace Scalpel.DocParser
         /// <returns>The parsed documentation in the form of an <see cref="Interchangeable.Documentation"/> instance</returns>
         public Interchangeable.Documentation Parse()
         {
-            var files = SearchDirectory(InDir);
+            var namespaces = SearchDirectory(InDir);
 
-            foreach (var file in files)
-                FinalizeClasses(file.Classes, file.Functions);
+            namespaces = MergeNamespaces(namespaces);
+            foreach (var ns in namespaces)
+                FinalizeDatatypes(ns);
+            namespaces = HierarchyzeNamespaces(namespaces);
 
             return new Interchangeable.Documentation()
             {
-                Files = files.ToArray()
+                Namespaces = namespaces.ToArray()
             };
         }
 
-        protected IList<Interchangeable.File> SearchDirectory(string dirPath)
+        protected List<Interchangeable.Namespace> SearchDirectory(string dirPath)
         {
-            var documentedFiles = new List<Interchangeable.File>();
+            var namespaces = new List<Interchangeable.Namespace>();
 
             var directories = Directory.GetDirectories(dirPath);
             foreach (var d in directories)
-                documentedFiles.AddRange(SearchDirectory(d));
+                namespaces.AddRange(SearchDirectory(d));
 
             var files = Directory.GetFiles(dirPath);
             foreach (var f in files)
@@ -59,151 +63,220 @@ namespace Scalpel.DocParser
                 var ext = new FileInfo(f).Extension;
                 if (ext.Length < 1 || !Filetypes.Contains(ext.Substring(1))) continue;
 
-                var file = ParseFile(File.ReadAllText(f), f);
-                documentedFiles.Add(file);
+                var nsInFile = ParseFile(File.ReadAllText(f));
+                namespaces.AddRange(nsInFile);
             }
 
-            return documentedFiles;
+            return namespaces;
         }
 
-        protected Interchangeable.File ParseFile(string content, string path)
+        protected List<Interchangeable.Namespace> ParseFile(string content)
         {
-            var regexComment = new Regex(rxDocComment);
-            var regexLine = new Regex(rxLine);
-
-            var classes = new List<Interchangeable.Class>();
-            var functions = new List<Interchangeable.Function>();
-
-            Match m;
             int pos = 0;
-            string currentComment = "";
-            var lastTimeWasSuccessful = false;
-
-            while ((m = regexComment.Match(content, pos)).Success || lastTimeWasSuccessful)
-            {
-                lastTimeWasSuccessful = m.Success;
-
-                if (!lastTimeWasSuccessful || (pos < m.Index && pos != 0))
-                {
-                    // now comes what is documented by currentComment. Maybe a class, declaration, etc.
-                    var nextLineMatch = regexLine.Match(content, pos);
-
-                    Interchangeable.IInterchangeable next;
-                    if ((next = ParseNextClass(nextLineMatch.Value, currentComment)) != null)
-                        classes.Add(next as Interchangeable.Class);
-                    else if ((next = ParseNextFunction(nextLineMatch.Value, currentComment)) != null)
-                        functions.Add(next as Interchangeable.Function);
-
-                    currentComment = "";
-                }
-
-                if (lastTimeWasSuccessful)
-                {
-                    currentComment += "\n" + m.Groups[1];
-                    pos = m.Index + m.Length;
-                }
-            }
-
-            return new Interchangeable.File()
-            {
-                Path = path,
-                Classes = classes.ToArray(),
-                Functions = functions.ToArray()
-            };
-        }
-
-        protected Interchangeable.Function ParseNextFunction(string content, string docComment)
-        {
-            var regex = new Regex(rxFunctionDefinition);
             Match m;
+            var regexNamespace = new Regex(rxNamespace);
+            List<Interchangeable.Namespace> namespaces = new List<Interchangeable.Namespace>();
 
-            XmlDocument xmlDoc = null;
-            docComment = $"<doc>{docComment}</doc>";
-
-            try
+            while (pos < content.Length)
             {
-                xmlDoc = new XmlDocument();
-                xmlDoc.LoadXml(docComment);
-            }
-            catch (XmlException) { }
-
-            if ((m = regex.Match(content)).Success)
-            {
-                var typeParams = m.Groups[7].Value.Split(',').Select(c => c.Trim()).ToArray();
-
-                var func = new Interchangeable.Function()
+                if ((m = regexNamespace.Match(content, pos)).Success)
                 {
-                    AccessLevel = m.Groups[1].Value.Trim(),
-                    Modifier = m.Groups[2].Value.Trim(),
-                    ReturnTypeUnparsed = m.Groups[4].Value.Trim(),
-                    Name = m.Groups[5].Value.Trim(),
-                    TypeParams = typeParams == null || typeParams.Length < 1 || typeParams[0] == "" ? null : typeParams,
+                    var start = m.Index + m.Length;
+                    var end = FindClosingScope(content, start);
 
-                    Info = xmlDoc != null ? ParseDocComment(xmlDoc) : null
-                };
-                Interchangeable.Function.ByName.Add(func.Name, func);
+                    var inner = content.Substring(start + 1, end - start - 1);
 
-                return func;
+                    namespaces.Add(new Interchangeable.Namespace()
+                    {
+                        Name = m.Groups[1].Value,
+                        Datatypes = FindDatatypes(inner).ToArray()
+                    });
+
+                    pos = end + 1;
+                }
+                else
+                {
+                    break;
+                }
             }
 
-            return null;
+            var globalDtypes = FindDatatypes(content.Substring(pos)).ToArray();
+            if (globalDtypes.Length > 0)
+            {
+                namespaces.Add(new Interchangeable.Namespace()
+                {
+                    Name = "",
+                    Datatypes = globalDtypes
+                });
+            }
+            
+            return namespaces;
         }
 
-        protected Interchangeable.Class ParseNextClass(string content, string docComment)
+        protected List<Interchangeable.Datatype> FindDatatypes(string content)
         {
-            var regex = new Regex(rxClassDefinition);
+            int pos = 0;
             Match m;
+            var regexClass = new Regex(rxClass);
+            List<Interchangeable.Datatype> dtypes = new List<Interchangeable.Datatype>();
 
-            XmlDocument xmlDoc = null;
-            docComment = $"<doc>{docComment}</doc>";
-
-            try
+            while (pos < content.Length)
             {
-                xmlDoc = new XmlDocument();
-                xmlDoc.LoadXml(docComment);
-            }
-            catch (XmlException) { }
-
-            if ((m = regex.Match(content)).Success)
-            {
-                var typeParams = m.Groups[7].Value.Split(',').Select(c => c.Trim()).ToArray();
-                var baseClasses = m.Groups[10].Value.Split(',').Select(c => c.Trim()).ToArray();
-
-                var _class = new Interchangeable.Class()
+                if ((m = regexClass.Match(content, pos)).Success)
                 {
-                    AccessLevel = m.Groups[1].Value.Trim(),
-                    Modifier = m.Groups[2].Value.Trim(),
-                    Name = m.Groups[4].Value.Trim(),
-                    BaseClasses = baseClasses == null || baseClasses.Length < 1 || baseClasses[0] == "" ? null : baseClasses,
-                    TypeParams = typeParams == null || typeParams.Length < 1 || typeParams[0] == "" ? null : typeParams,
+                    var start = m.Index + m.Length;
+                    var end = FindClosingScope(content, start);
 
-                    Info = xmlDoc != null ? ParseDocComment(xmlDoc) : null
-                };
-                Interchangeable.Class.ByName.Add(_class.Name, _class);
+                    var inner = content.Substring(start + 1, end - start - 1);
 
-                return _class;
+                    dtypes.Add(new Interchangeable.Class()
+                    {
+                        AccessLevel = TrimToNullIfEmpty(m.Groups[1].Value) ?? "private",
+                        Modifier = TrimToNullIfEmpty(m.Groups[3].Value),
+                        Name = m.Groups[6].Value,
+                        TypeParams = MakeEmptyIfFistElementIsZeroLengthString(
+                                m.Groups[8].Value.Split(',').Select(p => p.Trim()).ToArray()
+                            ),
+                        BaseClasses = MakeEmptyIfFistElementIsZeroLengthString(
+                                m.Groups[12].Value.Split(',').Select(p => p.Trim()).ToArray()
+                            ),
+
+                        Info = ParseDocComment(BackTrackComments(content, m.Index))
+                    });
+
+                    pos = end + 1;
+                }
+                else
+                {
+                    break;
+                }
             }
 
-            return null;
+            return dtypes;
         }
 
-        protected void FinalizeClasses(IEnumerable<Interchangeable.Class> classes, IEnumerable<Interchangeable.Function> functions)
+        protected List<Interchangeable.Function> ParseMembers(string content)
         {
-            foreach (var c in classes)
+            // todo
+            return new List<Interchangeable.Function>();
+        }
+
+        protected string BackTrackComments(string content, int pos)
+        {
+            var linesBefore = content.Substring(0, pos).Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).Reverse();
+            var comment = "";
+
+            foreach (var l in linesBefore)
+            {
+                if (l.StartsWith("[") && l.EndsWith("]")) continue; // Attribute
+                if (l.StartsWith("///")) comment = l.Substring(3).Trim() + comment;
+                else break;
+            }
+
+            return comment;
+        }
+
+        protected string TrimToNullIfEmpty(string s)
+        {
+            return s.Trim().Length < 1 ? null : s.Trim();
+        }
+
+        protected string[] MakeEmptyIfFistElementIsZeroLengthString(string[] arr)
+        {
+            if (arr.Length < 1) return arr;
+            if (arr.Length == 1 && TrimToNullIfEmpty(arr[0]) == null) return new string[] { };
+            return arr;
+        }
+
+        protected int FindClosingScope(string s, int pos)
+        {
+            var opening = s[pos];
+            char closing;
+            int level = 0;
+
+            switch (opening)
+            {
+                case '{': closing = '}'; break;
+                default: return -1;
+            }
+
+            for (; pos < s.Length; ++pos)
+            {
+                if (s[pos] == opening) level++;
+                else if (s[pos] == closing) level--;
+                if (level == 0) return pos;
+            }
+
+            return -1;
+        }
+
+        protected List<Interchangeable.Namespace> MergeNamespaces(List<Interchangeable.Namespace> namespaces)
+        {
+            var mergedNamespaces = new Dictionary<string, Interchangeable.Namespace>();
+
+            foreach (var ns in namespaces)
+            {
+                if (mergedNamespaces.ContainsKey(ns.Name))
+                {
+                    var _ns = mergedNamespaces[ns.Name];
+                    _ns.Datatypes = _ns.Datatypes.Concat(ns.Datatypes).ToArray();
+                }
+                else
+                {
+                    mergedNamespaces.Add(ns.Name, ns);
+                }
+            }
+
+            return mergedNamespaces.Values.ToList();
+        }
+
+        protected List<Interchangeable.Namespace> HierarchyzeNamespaces(List<Interchangeable.Namespace> namespaces)
+        {
+            // todo
+            return namespaces;
+        }
+
+        protected void FinalizeDatatypes(Interchangeable.Namespace ns)
+        {
+            foreach (var dt in ns.Datatypes)
+            {
+                if (dt is Interchangeable.Class)
+                {
+                    var c = dt as Interchangeable.Class;
+                    var absoluteName = $"{ ns.Name }.{ c.Name }";
+                    if (Interchangeable.Class.ByName.ContainsKey(absoluteName))
+                        throw new ApplicationException($"Duplicate type names: { absoluteName }");
+                    Interchangeable.Class.ByName.Add(absoluteName, c);
+                    c.Namespace = ns;
+                }
+            }
+
+            foreach (var c in ns.Datatypes)
             {
                 if (c.Info.UnparsedSummary == null) continue;
                 c.Info.Summary = ScalpelPlugin.Syntax.FormattedText.Parse(c.Info.UnparsedSummary);
                 c.Info.UnparsedSummary = null;
-            }
 
-            foreach (var f in functions)
-            {
-                if (f.Info.UnparsedSummary == null) continue;
-                f.Info.Summary = ScalpelPlugin.Syntax.FormattedText.Parse(f.Info.UnparsedSummary);
-                f.Info.UnparsedSummary = null;
+                if (c is Interchangeable.Class)
+                {
+                    var _class = c as Interchangeable.Class;
+                    if (_class.Functions == null) continue;
+                    foreach (var f in (c as Interchangeable.Class).Functions)
+                    {
+                        if (f.Info.UnparsedSummary == null) continue;
+                        f.Info.Summary = ScalpelPlugin.Syntax.FormattedText.Parse(f.Info.UnparsedSummary);
+                        f.Info.UnparsedSummary = null;
+                    }
+                }
             }
         }
 
+        protected Interchangeable.DocumentationInfo ParseDocComment(string comment)
+        {
+            var doc = new XmlDocument();
+            doc.LoadXml($"<doc>{ comment }</doc>");
+            return ParseDocComment(doc);
+        }
         protected Interchangeable.DocumentationInfo ParseDocComment(XmlDocument xml)
         {
             var typeParamDescr = new Dictionary<string, string>();
@@ -222,4 +295,9 @@ namespace Scalpel.DocParser
             };
         }
     }
+}
+
+namespace test.hallo
+{
+
 }

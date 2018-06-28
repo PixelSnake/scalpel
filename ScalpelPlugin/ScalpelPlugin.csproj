@@ -41,11 +41,14 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Interchangeable\Class.cs" />
+    <Compile Include="Interchangeable\ClassMember.cs" />
+    <Compile Include="Interchangeable\Datatype.cs" />
     <Compile Include="Interchangeable\Documentation.cs" />
     <Compile Include="Interchangeable\DocumentationInfo.cs" />
     <Compile Include="Interchangeable\File.cs" />
     <Compile Include="Interchangeable\Function.cs" />
     <Compile Include="Interchangeable\IInterchangeable.cs" />
+    <Compile Include="Interchangeable\Namespace.cs" />
     <Compile Include="Plugins\Plugin.cs" />
     <Compile Include="Plugins\PluginParams.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

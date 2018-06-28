@@ -10,7 +10,7 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
     public void Convert(Documentation documentation, string outPath)
     {
         var classes = new List<Class>();
-        foreach (var f in documentation.Files) classes.AddRange(f.Classes);
+        // foreach (var f in documentation.Files) classes.AddRange(f.Classes);
         classes = classes.OrderBy(c => c.Name).ToList();
 
         var tex = DocumentHeader() + TexifyClasses(classes) + DocumentFooter();
