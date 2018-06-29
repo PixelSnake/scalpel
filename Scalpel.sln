@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "latex", "latex\latex.csproj
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScalpelPlugin", "ScalpelPlugin\ScalpelPlugin.csproj", "{B681F6DC-D3F7-416C-AEFE-9016AF497FE8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "scalpel-gui", "scalpel-gui\scalpel-gui.csproj", "{29EFB535-9DE2-475F-9147-DD8A46AFEAE2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{B681F6DC-D3F7-416C-AEFE-9016AF497FE8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B681F6DC-D3F7-416C-AEFE-9016AF497FE8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B681F6DC-D3F7-416C-AEFE-9016AF497FE8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{29EFB535-9DE2-475F-9147-DD8A46AFEAE2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{29EFB535-9DE2-475F-9147-DD8A46AFEAE2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{29EFB535-9DE2-475F-9147-DD8A46AFEAE2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{29EFB535-9DE2-475F-9147-DD8A46AFEAE2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
