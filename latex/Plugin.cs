@@ -10,6 +10,18 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
 {
     bool OpenFile = false;
 
+    public PluginInfo Info => new PluginInfo()
+    {
+        Name = "LaTeX for Scalpel",
+        Version = "0.1.0",
+        Author = "Thomas Neumüller",
+        Description = "Compiles Scalpel documentation into PDF using LaTeX",
+        EMail = "info@pxsnake.de",
+        Web = "https://pxsnake.de",
+        Repository = "https://github.com/PixelSnake/scalpel",
+        Issues = "https://github.com/PixelSnake/scalpel/issues"
+    };
+
     public void Convert(PluginParams p)
     {
         var documentation = p.Documentation;

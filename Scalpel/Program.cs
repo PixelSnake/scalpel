@@ -23,23 +23,29 @@ namespace Scalpel
                 return;
             }
 
-            ProjectFolder = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), args[0]);
-            Console.WriteLine($"Input Directory: { ProjectFolder }");
+            if (System.IO.Directory.Exists(args[0]))
+            {
+                ProjectFolder = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), args[0]);
+                Console.WriteLine($"Input Directory: { ProjectFolder }");
+            }
 
-            ParseArguments(args);
+            ParseArguments(args, ProjectFolder == null ? 0 : 1);
 
-            if (Filetypes == null)
+            if (ProjectFolder != null && Filetypes == null)
             {
                 PrintUsage();
-                Console.WriteLine("\n\t-i is mandatory.");
+                Console.WriteLine("\n\t-i is mandatory when project path is specified.");
                 return;
             }
-            if (Formatter == null)
+            if (ProjectFolder != null && Formatter == null)
             {
                 PrintUsage();
-                Console.WriteLine("\n\t-f is mandatory.");
+                Console.WriteLine("\n\t-f is mandatory when project path is specified.");
                 return;
             }
+
+            // If no path is specified, we dont parse anything
+            if (ProjectFolder == null) return;
 
             var parser = new DocParser.DocumentationParser(ProjectFolder, Filetypes);
             var docs = parser.Parse();
@@ -73,9 +79,9 @@ namespace Scalpel
             Console.WriteLine("\tscalpel project-path [arguments]");
         }
 
-        static void ParseArguments(string[] args)
+        static void ParseArguments(string[] args, int start = 1)
         {
-            for (var i = 1; i < args.Length; ++i)
+            for (var i = start; i < args.Length; ++i)
             {
                 var p = args[i];
 
@@ -104,7 +110,11 @@ namespace Scalpel
                             if (PluginLoader == null) PluginLoader = new Plugins.PluginLoader();
                             var plugin = PluginLoader.LoadPlugin(Format);
 
-                            if (plugin == null) return;
+                            if (plugin == null)
+                            {
+                                Console.WriteLine($"FATAL: Plugin \"{ arg }\" cannot be found. Terminating.");
+                                return;
+                            }
                             Formatter = plugin;
                         }
                         break;
@@ -122,6 +132,29 @@ namespace Scalpel
                         {
                             var arg = args[++i];
                             Filetypes = arg.Split(',');
+                        }
+                        break;
+
+                    case "-pi":
+                    case "--plugin-info":
+                        {
+                            var arg = args[++i];
+                            if (PluginLoader == null) PluginLoader = new Plugins.PluginLoader();
+                            var plugin = PluginLoader.LoadPlugin(arg);
+
+                            if (plugin == null) return;
+                            if (plugin.Info == null)
+                            {
+                                Console.WriteLine("This plugin does not provide any information about itself");
+                                break;
+                            }
+
+                            Console.WriteLine(plugin.Info.Name + " Version " + plugin.Info.Version);
+                            Console.WriteLine(plugin.Info.Description);
+                            Console.WriteLine($"Author: { plugin.Info.Author } ({ plugin.Info.EMail })");
+                            Console.WriteLine($"Web: { plugin.Info.Web }");
+                            Console.WriteLine($"Repository: { plugin.Info.Repository }");
+                            Console.WriteLine($"Issues: { plugin.Info.Issues }");
                         }
                         break;
                 }

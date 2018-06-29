@@ -50,6 +50,7 @@
     <Compile Include="Interchangeable\IInterchangeable.cs" />
     <Compile Include="Interchangeable\Namespace.cs" />
     <Compile Include="Plugins\Plugin.cs" />
+    <Compile Include="Plugins\PluginInfo.cs" />
     <Compile Include="Plugins\PluginParams.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Syntax\Elements\ClassReference.cs" />
