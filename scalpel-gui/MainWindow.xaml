@@ -6,7 +6,9 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:scalpel_gui"
         mc:Ignorable="d"
-        Title="Scalpel GUI" Height="350" Width="525">
+		Activated="Window_Activated"
+		Closing="Window_Closing"
+        Title="Scalpel GUI" Height="550" Width="750">
     <Grid Margin="8">
 		<Grid.RowDefinitions>
 			<RowDefinition Height="auto"></RowDefinition>
@@ -71,19 +73,25 @@
 			<Grid.RowDefinitions>
 				<RowDefinition Height="auto"></RowDefinition>
 				<RowDefinition Height="auto" MinHeight="28"></RowDefinition>
+				<RowDefinition Height="auto"></RowDefinition>
+				<RowDefinition Height="auto" MinHeight="28"></RowDefinition>
 			</Grid.RowDefinitions>
 
-			<Label Grid.Row="0">File Types - comma separated, no space, no dot, e.g.: "cpp,hpp,h"</Label>
-			<TextBox Grid.Row="1" x:Name="TxtFileTypes"></TextBox>
+			<Label Grid.Row="0">Format plugin command line options e.g. "-o"</Label>
+			<TextBox Grid.Row="1" x:Name="TxtFormatOptions"></TextBox>
+			<Label Grid.Row="2">File Types - comma separated, no space, no dot, e.g.: "cpp,hpp,h"</Label>
+			<TextBox Grid.Row="3" x:Name="TxtFileTypes"></TextBox>
 		</Grid>
 
 		<Grid Grid.Row="4" Margin="0,4,0,0">
 			<Grid.ColumnDefinitions>
 				<ColumnDefinition Width="*"></ColumnDefinition>
 				<ColumnDefinition Width="100"></ColumnDefinition>
+				<ColumnDefinition Width="104"></ColumnDefinition>
 			</Grid.ColumnDefinitions>
 
-			<Button Grid.Column="1" Click="BuildDocs">Build Docs</Button>
+			<Button Grid.Column="1" Click="SaveConfig">Save Config</Button>
+			<Button Grid.Column="2" Click="BuildDocs" Margin="4,0,0,0">Build Docs</Button>
 		</Grid>
 	</Grid>
 </Window>
