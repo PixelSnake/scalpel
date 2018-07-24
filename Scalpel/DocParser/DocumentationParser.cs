@@ -236,7 +236,8 @@ namespace Scalpel.DocParser
                             var paramListEnd = FindClosingScope(content, pos);
                             var paramList = content.Substring(pos + 1, paramListEnd - pos - 1);
                             func.Parameters = ParseParamList(paramList).ToArray();
-                            
+                            func.Info = ParseDocComment(BackTrackComments(content, content.LastIndexOf('\n', pos)));
+
                             members.Add(func);
                             clear();
                             pos = paramListEnd + 1;
