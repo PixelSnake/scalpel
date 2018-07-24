@@ -149,7 +149,7 @@ namespace Scalpel.DocParser
                             ),
 
                         Info = ParseDocComment(BackTrackComments(content, m.Index)),
-                        Functions = ParseMembers(inner, m.Groups[6].Value).ToArray()
+                        Functions = ParseMembers(inner, m.Groups[6].Value).Where(mem => mem is Interchangeable.Function).ToArray() as Interchangeable.Function[]
                     });
 
                     pos = end + 1;
@@ -163,17 +163,64 @@ namespace Scalpel.DocParser
             return dtypes;
         }
 
-        protected List<Interchangeable.Function> ParseMembers(string content, string dtypeName)
+        protected List<Interchangeable.ClassMember> ParseMembers(string content, string dtypeName)
         {
             var pos = 0;
-            var members = new List<Interchangeable.Function>();
+            var members = new List<Interchangeable.ClassMember>();
 
-            var func = new Interchangeable.Function();
+            while (true)
+            {
+                var member = ParseNextMember(content, dtypeName, pos, out pos);
+                if (member == null) break;
+
+                var followingChar = content.Substring(pos).TrimStart()[0];
+                if (followingChar == ';' || followingChar == '=')
+                {
+                    // this member is a variable
+                    // TODO
+                    continue;
+                }
+                else if (member != null && followingChar == '(')
+                {
+                    var function = new Interchangeable.Function()
+                    {
+                        Name = member.Name,
+                        AccessLevel = member.AccessLevel,
+                        Modifiers = member.Modifiers,
+                        TypeUnparsed = member.TypeUnparsed
+                    };
+
+                    pos = content.IndexOf('(', pos);
+                    var paramListEnd = FindClosingScope(content, pos);
+                    var paramList = content.Substring(pos + 1, paramListEnd - pos - 1);
+
+                    function.Parameters = ParseParamList(paramList).ToArray();
+                    function.Info = ParseDocComment(BackTrackComments(content, content.LastIndexOf('\n', pos)));
+
+                    members.Add(function);
+                    pos = paramListEnd + 1;
+
+                    var body = content.Substring(pos);
+                    if (body.Trim()[0] == '{')
+                    {
+                        var bodyBegin = content.IndexOf('{', pos);
+                        var bodyEnd = FindClosingScope(content, bodyBegin);
+                        pos = bodyEnd + 1;
+                    }
+                }
+            }
+
+            return members;
+        }
+
+        protected Interchangeable.ClassMember ParseNextMember(string content, string dtypeName, int inPos, out int outPos)
+        {
+            var member = new Interchangeable.ClassMember();
             var modifiers = new List<string>();
 
             while (true)
             {
-                var nextWord = getNextWord();
+                var nextWord = getNextWord(inPos, out inPos);
                 if (nextWord != null)
                 {
                     Console.WriteLine("nextWord: " + nextWord);
@@ -184,7 +231,7 @@ namespace Scalpel.DocParser
                         case "protected":
                         case "internal":
                         case "public":
-                            func.AccessLevel = nextWord;
+                            member.AccessLevel = nextWord;
                             break;
 
                         case "sealed":
@@ -200,56 +247,31 @@ namespace Scalpel.DocParser
                             /* if nextWord is the constructor */
                             if (nextWord == dtypeName)
                             {
-                                func.ReturnTypeUnparsed = "this";
-                                func.Name = nextWord;
+                                member.TypeUnparsed = "this";
+                                member.Name = nextWord;
                             }
                             else
                             {
                                 /* nextWord is not a keyword. This means, it is eather the return type or the name of the member */
-                                if (func.ReturnTypeUnparsed == null)
+                                if (member.TypeUnparsed == null)
                                 {
-                                    func.ReturnTypeUnparsed = nextWord;
+                                    member.TypeUnparsed = nextWord;
                                 }
                                 else
                                 {
-                                    func.Name = nextWord;
+                                    member.Name = nextWord;
                                 }
                             }
                             break;
                     }
 
-                    if (func.ReturnTypeUnparsed != null && func.Name != null)
+                    if (member.TypeUnparsed != null && member.Name != null)
                     {
-                        if (func.AccessLevel == null) func.AccessLevel = "private";
-                        func.Modifiers = modifiers.ToArray();
+                        if (member.AccessLevel == null) member.AccessLevel = "private";
+                        member.Modifiers = modifiers.ToArray();
 
-                        var followingChar = content.Substring(pos).Trim()[0];
-                        if (followingChar == ';' || followingChar == '=')
-                        {
-                            // this is a private variable
-                            // TODO
-                            clear();
-                            continue;
-                        }
-                        else if (followingChar == '(')
-                        {
-                            var paramListEnd = FindClosingScope(content, pos);
-                            var paramList = content.Substring(pos + 1, paramListEnd - pos - 1);
-                            func.Parameters = ParseParamList(paramList).ToArray();
-                            func.Info = ParseDocComment(BackTrackComments(content, content.LastIndexOf('\n', pos)));
-
-                            members.Add(func);
-                            clear();
-                            pos = paramListEnd + 1;
-
-                            var body = content.Substring(pos);
-                            if (body.Trim()[0] == '{')
-                            {
-                                var bodyBegin = content.IndexOf('{', pos);
-                                var bodyEnd = FindClosingScope(content, bodyBegin);
-                                pos = bodyEnd + 1;
-                            }
-                        }
+                        outPos = inPos;
+                        return member;
                     }
                 }
                 else
@@ -258,17 +280,18 @@ namespace Scalpel.DocParser
                 }
             }
 
-            return members;
+            outPos = inPos;
+            return null;
 
 
             /* --------- Local Helper Functions -------- */
-            string getNextWord()
+            string getNextWord(int _inPos, out int _outPos)
             {
                 Match m;
 
                 while (true)
                 {
-                    var s = content.Substring(pos);
+                    var s = content.Substring(_inPos);
                     m = new Regex(@"(\s|[^<>\w.\[\]])").Match(s);
                     if (m.Success)
                     {
@@ -276,22 +299,22 @@ namespace Scalpel.DocParser
 
                         if (word.Length == 0)
                         {
-                            pos = SkipNoCode(content, pos + 1);
+                            _inPos = SkipNoCode(content, _inPos + 1);
                             continue;
                         }
 
-                        pos += m.Index;
-                        pos = SkipNoCode(content, pos);
+                        _inPos += m.Index;
+                        _inPos = SkipNoCode(content, _inPos);
+
+                        _outPos = _inPos;
                         return word;
                     }
-                    return null;
-                }
-            }
 
-            void clear()
-            {
-                func = new Interchangeable.Function();
-                modifiers.Clear();
+                    break;
+                }
+
+                _outPos = _inPos;
+                return null;
             }
         }
 

@@ -9,15 +9,14 @@ namespace Scalpel.Interchangeable
 {
     public class Function : ClassMember
     {
-        public string ReturnTypeUnparsed;
-        public Class ReturnType;
+        public Class Type;
         public string[] TypeParams;
 
         public bool IsGeneric { get => TypeParams?.Length > 0; }
 
         public override string ToString()
         {
-            return $"{ AccessLevel } { String.Join(" ", Modifiers) } { ReturnTypeUnparsed } { Name }";
+            return $"{ AccessLevel } { String.Join(" ", Modifiers) } { TypeUnparsed } { Name }";
         }
     }
 }

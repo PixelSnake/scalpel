@@ -10,7 +10,7 @@ namespace Scalpel.Interchangeable
     {
         public static Dictionary<string, ClassMember> ByName = new Dictionary<string, ClassMember>();
 
-        public string AccessLevel, Name;
+        public string AccessLevel, Name, TypeUnparsed;
         public string[] Modifiers;
         public FunctionParameter[] Parameters;
 
