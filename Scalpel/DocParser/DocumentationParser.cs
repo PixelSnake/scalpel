@@ -148,7 +148,8 @@ namespace Scalpel.DocParser
                                 m.Groups[12].Value.Split(',').Select(p => p.Trim()).ToArray()
                             ),
 
-                        Info = ParseDocComment(BackTrackComments(content, m.Index))
+                        Info = ParseDocComment(BackTrackComments(content, m.Index)),
+                        Functions = ParseMembers(inner).ToArray()
                     });
 
                     pos = end + 1;
@@ -195,11 +196,20 @@ namespace Scalpel.DocParser
             return arr;
         }
 
+        /// <summary>
+        /// Finds the closing bracket for the opening bracket at the given parameter <see cref="pos"/>
+        /// </summary>
+        /// <param name="s">The search string</param>
+        /// <param name="pos">The position of the opening bracket</param>
+        /// <returns>The position of the closing bracket in the given string <see cref="s"/> or -1 if no closing bracket is found or there is no opening bracket at the given position</returns>
         protected int FindClosingScope(string s, int pos)
         {
             var opening = s[pos];
             char closing;
             int level = 0;
+            var log = s;
+            var codeModeStack = new Stack<CodeMode>();
+            codeModeStack.Push(CodeMode.Code);
 
             switch (opening)
             {
@@ -209,12 +219,80 @@ namespace Scalpel.DocParser
 
             for (; pos < s.Length; ++pos)
             {
-                if (s[pos] == opening) level++;
-                else if (s[pos] == closing) level--;
-                if (level == 0) return pos;
+                var subPos = s.Substring(pos);
+                var lvlBefore = level;
+
+                /* single line comment */
+                if (isInCode() && subPos.StartsWith("//"))
+                {
+                    codeModeStack.Push(CodeMode.CommentSingleLine);
+                    pos++;
+                }
+                else if (codeModeStack.Peek() == CodeMode.CommentSingleLine && subPos.StartsWith("\n"))
+                    codeModeStack.Pop();
+                /* multi line comment */
+                else if (isInCode() && subPos.StartsWith("/*"))
+                {
+                    codeModeStack.Push(CodeMode.CommentMultiLine);
+                    pos++;
+                }
+                else if (codeModeStack.Peek() == CodeMode.CommentMultiLine && subPos.StartsWith("*/"))
+                {
+                    codeModeStack.Pop();
+                    pos++;
+                }
+                /* string literal */
+                else if (!isInComment() && subPos.StartsWith("\""))
+                {
+                    /* if we are currently NOT inside a string or character literal */
+                    if (codeModeStack.Peek() != CodeMode.StringLiteral && codeModeStack.Peek() != CodeMode.CharacterLiteral)
+                        codeModeStack.Push(CodeMode.StringLiteral);
+                    /* if we are currently inside a string literal */
+                    else if (codeModeStack.Peek() == CodeMode.StringLiteral && pos > 1)
+                    {
+                        /* if there is no escape symbol before the string opening, close the string literal */
+                        if (s[pos - 1] != '\\' || s[pos - 2] == '\\') codeModeStack.Pop();
+                    }
+                }
+                else if (!isInComment() && subPos.StartsWith("'"))
+                {
+                    /* if we are currently NOT inside a string or character literal */
+                    if (codeModeStack.Peek() != CodeMode.StringLiteral && codeModeStack.Peek() != CodeMode.CharacterLiteral)
+                        codeModeStack.Push(CodeMode.CharacterLiteral);
+                    /* if we are currently inside a character literal */
+                    else if (codeModeStack.Peek() == CodeMode.CharacterLiteral && pos > 1)
+                    {
+                        /* if there is no escape symbol before the character opening, close the character literal */
+                        if (s[pos - 1] != '\\' || s[pos - 2] == '\\') codeModeStack.Pop();
+                    }
+                }
+
+                if (isInCode())
+                {
+                    if (s[pos] == opening) level++;
+                    else if (s[pos] == closing) level--;
+                    if (level == 0) return pos;
+                }
+
+                if (lvlBefore != level)
+                {
+                    var start = Math.Max(0, pos - 10);
+                    Console.WriteLine("level = " + level + ", pos = " + pos + "\n----------------------\n..." + s.Substring(start, Math.Min(s.Length - start, 20)) + "\n");
+                }
             }
 
             return -1;
+
+
+            /*-------------- Code Mode Helper Functions -------------*/
+            bool isInComment()
+            {
+                return codeModeStack.Peek() == CodeMode.CommentMultiLine || codeModeStack.Peek() == CodeMode.CommentSingleLine;
+            }
+            bool isInCode()
+            {
+                return codeModeStack.Peek() == CodeMode.Code;
+            }
         }
 
         protected List<Interchangeable.Namespace> MergeNamespaces(List<Interchangeable.Namespace> namespaces)
@@ -299,6 +377,15 @@ namespace Scalpel.DocParser
 
                 TypeParamDescription = typeParamDescr
             };
+        }
+
+        private enum CodeMode
+        {
+            Code,
+            CommentSingleLine,
+            CommentMultiLine,
+            StringLiteral,
+            CharacterLiteral
         }
     }
 }
