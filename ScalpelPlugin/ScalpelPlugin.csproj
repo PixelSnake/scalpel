@@ -47,6 +47,7 @@
     <Compile Include="Interchangeable\DocumentationInfo.cs" />
     <Compile Include="Interchangeable\File.cs" />
     <Compile Include="Interchangeable\Function.cs" />
+    <Compile Include="Interchangeable\FunctionParameter.cs" />
     <Compile Include="Interchangeable\IInterchangeable.cs" />
     <Compile Include="Interchangeable\Namespace.cs" />
     <Compile Include="Plugins\Plugin.cs" />

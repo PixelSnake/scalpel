@@ -149,7 +149,7 @@ namespace Scalpel.DocParser
                             ),
 
                         Info = ParseDocComment(BackTrackComments(content, m.Index)),
-                        Functions = ParseMembers(inner).ToArray()
+                        Functions = ParseMembers(inner, m.Groups[6].Value).ToArray()
                     });
 
                     pos = end + 1;
@@ -163,10 +163,140 @@ namespace Scalpel.DocParser
             return dtypes;
         }
 
-        protected List<Interchangeable.Function> ParseMembers(string content)
+        protected List<Interchangeable.Function> ParseMembers(string content, string dtypeName)
         {
-            // todo
-            return new List<Interchangeable.Function>();
+            var pos = 0;
+            var members = new List<Interchangeable.Function>();
+
+            var func = new Interchangeable.Function();
+            var modifiers = new List<string>();
+
+            while (true)
+            {
+                var nextWord = getNextWord();
+                if (nextWord != null)
+                {
+                    Console.WriteLine("nextWord: " + nextWord);
+
+                    switch (nextWord)
+                    {
+                        case "private":
+                        case "protected":
+                        case "internal":
+                        case "public":
+                            func.AccessLevel = nextWord;
+                            break;
+
+                        case "sealed":
+                        case "abstract":
+                        case "override":
+                        case "new":
+                        case "readonly":
+                        case "static":
+                            modifiers.Add(nextWord);
+                            break;
+
+                        default:
+                            /* if nextWord is the constructor */
+                            if (nextWord == dtypeName)
+                            {
+                                func.ReturnTypeUnparsed = "this";
+                                func.Name = nextWord;
+                            }
+                            else
+                            {
+                                /* nextWord is not a keyword. This means, it is eather the return type or the name of the member */
+                                if (func.ReturnTypeUnparsed == null)
+                                {
+                                    func.ReturnTypeUnparsed = nextWord;
+                                }
+                                else
+                                {
+                                    func.Name = nextWord;
+                                }
+                            }
+                            break;
+                    }
+
+                    if (func.ReturnTypeUnparsed != null && func.Name != null)
+                    {
+                        if (func.AccessLevel == null) func.AccessLevel = "private";
+                        func.Modifiers = modifiers.ToArray();
+
+                        var followingChar = content.Substring(pos).Trim()[0];
+                        if (followingChar == ';' || followingChar == '=')
+                        {
+                            // this is a private variable
+                            // TODO
+                            clear();
+                            continue;
+                        }
+                        else if (followingChar == '(')
+                        {
+                            var paramListEnd = FindClosingScope(content, pos);
+                            var paramList = content.Substring(pos + 1, paramListEnd - pos - 1);
+                            func.Parameters = ParseParamList(paramList).ToArray();
+                            
+                            members.Add(func);
+                            clear();
+                            pos = paramListEnd + 1;
+
+                            var body = content.Substring(pos);
+                            if (body.Trim()[0] == '{')
+                            {
+                                var bodyBegin = content.IndexOf('{', pos);
+                                var bodyEnd = FindClosingScope(content, bodyBegin);
+                                pos = bodyEnd + 1;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            return members;
+
+
+            /* --------- Local Helper Functions -------- */
+            string getNextWord()
+            {
+                Match m;
+
+                while (true)
+                {
+                    var s = content.Substring(pos);
+                    m = new Regex(@"(\s|[^<>\w.\[\]])").Match(s);
+                    if (m.Success)
+                    {
+                        var word = s.Substring(0, m.Index);
+
+                        if (word.Length == 0)
+                        {
+                            pos = SkipNoCode(content, pos + 1);
+                            continue;
+                        }
+
+                        pos += m.Index;
+                        pos = SkipNoCode(content, pos);
+                        return word;
+                    }
+                    return null;
+                }
+            }
+
+            void clear()
+            {
+                func = new Interchangeable.Function();
+                modifiers.Clear();
+            }
+        }
+
+        protected List<Interchangeable.FunctionParameter> ParseParamList(string s)
+        {
+            return new List<Interchangeable.FunctionParameter>();
         }
 
         protected string BackTrackComments(string content, int pos)
@@ -202,25 +332,45 @@ namespace Scalpel.DocParser
         /// <param name="s">The search string</param>
         /// <param name="pos">The position of the opening bracket</param>
         /// <returns>The position of the closing bracket in the given string <see cref="s"/> or -1 if no closing bracket is found or there is no opening bracket at the given position</returns>
+        /// 
+        /// TODO: not yet able to scan @ and $ prefixed strings properly
         protected int FindClosingScope(string s, int pos)
         {
             var opening = s[pos];
             char closing;
             int level = 0;
-            var log = s;
-            var codeModeStack = new Stack<CodeMode>();
-            codeModeStack.Push(CodeMode.Code);
 
             switch (opening)
             {
                 case '{': closing = '}'; break;
+                case '(': closing = ')'; break;
                 default: return -1;
             }
 
             for (; pos < s.Length; ++pos)
             {
+                pos = SkipNoCode(s, pos);
+                if (pos >= s.Length) break;
+
+                if (s[pos] == opening) level++;
+                else if (s[pos] == closing) level--;
+                if (level == 0) return pos;
+            }
+
+            return -1;
+        }
+
+        protected int SkipNoCode(string s, int pos)
+        {
+            var codeModeStack = new Stack<CodeMode>();
+            codeModeStack.Push(CodeMode.Code);
+
+            pos--;
+
+            while (true)
+            {
+                pos++;
                 var subPos = s.Substring(pos);
-                var lvlBefore = level;
 
                 /* single line comment */
                 if (isInCode() && subPos.StartsWith("//"))
@@ -268,21 +418,10 @@ namespace Scalpel.DocParser
                 }
 
                 if (isInCode())
-                {
-                    if (s[pos] == opening) level++;
-                    else if (s[pos] == closing) level--;
-                    if (level == 0) return pos;
-                }
-
-                if (lvlBefore != level)
-                {
-                    var start = Math.Max(0, pos - 10);
-                    Console.WriteLine("level = " + level + ", pos = " + pos + "\n----------------------\n..." + s.Substring(start, Math.Min(s.Length - start, 20)) + "\n");
-                }
+                    break;
             }
 
-            return -1;
-
+            return pos;
 
             /*-------------- Code Mode Helper Functions -------------*/
             bool isInComment()
