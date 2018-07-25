@@ -53,6 +53,8 @@ namespace scalpel_gui
         {
             var pluginPath = "../../../Scalpel/bin/Debug/plugins";
 
+            Directory.CreateDirectory(pluginPath);
+
             var watcher = new FileSystemWatcher();
             watcher.Path = pluginPath;
             watcher.NotifyFilter = NotifyFilters.LastWrite;
