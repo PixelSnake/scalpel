@@ -1,0 +1,5 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<project input="C:\Users\neumueth\Documents\scalpel\Scalpel" output="C:\Users\neumueth\Documents">
+  <type ending="cs" />
+  <format value="latex" options="-o" />
+</project>
