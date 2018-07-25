@@ -155,6 +155,7 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
 		
 		                " + texSummary(c) + @"
                         " + texTypeParameters(c) + @"
+                        " + texMemberFunctions(c) + @"
                     \vspace{1cm}
                 ";
             }
@@ -208,21 +209,21 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
             if (c.Modifier != null) attrTex += @"\colorbox{MidnightBlue}{\color{white}\textbf{\strut " + c.Modifier + @"}}" + "\n";
 
             return attrTex;
+        }
 
-            string GetAccessLevelColor(string al)
+        string GetAccessLevelColor(string al)
+        {
+            switch (al)
             {
-                switch (al)
-                {
-                    default:
-                    case "public":
-                        return "ForestGreen";
-                    case "internal":
-                        return "Emerald";
-                    case "protected":
-                        return "MidnightBlue";
-                    case "private":
-                        return "Gray";
-                }
+                default:
+                case "public":
+                    return "ForestGreen";
+                case "internal":
+                    return "Emerald";
+                case "protected":
+                    return "MidnightBlue";
+                case "private":
+                    return "Gray";
             }
         }
 
@@ -245,6 +246,32 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
             }
 
             return typeParamTex + @"\end{itemize}";
+        }
+
+        string texMemberFunctions(Class c)
+        {
+            if (c.Functions.Length < 1) return "";
+            var memFuncTex = @"\subsubsection{Member Functions}" + "\n";
+
+            foreach (var f in c.Functions)
+            {
+                var paramsInline = String.Join(", ", f.Params.Select(p => p.ToString()));
+
+                memFuncTex += @"\noindent \textbf{{\color{" + GetAccessLevelColor(f.AccessLevel) + @"}\textbf{\strut " + f.AccessLevel + @"}}} ";
+                memFuncTex += f.Name + " (" + TexEscape(paramsInline) + @") \\";
+
+                memFuncTex += @"
+                    \vspace{.05cm} \\
+                    \colorbox{LightLightGray}{
+					    \begin{tabularx}{\textwidth}{lX}
+						    " + (f.Info.Summary == null ? "" : @"\textbf{Summary} &" + TexifyFormattedText(f.Info.Summary, c.Namespace) + @" \\") + @"
+					    \end{tabularx}
+                    }
+                    \vspace{.2cm} \\
+                ";
+            }
+
+            return memFuncTex;
         }
         #endregion
     }
@@ -273,6 +300,7 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
     string TexifyFormattedText(ScalpelPlugin.Syntax.FormattedText ft, Namespace currentNamespace)
     {
         var tex = "";
+        if (ft == null) return tex;
 
         foreach (var elem in ft.Children)
         {
