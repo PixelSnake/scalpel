@@ -71,6 +71,8 @@ namespace Scalpel
                 Documentation = docs,
                 TargetDirectory = OutFolder
             });
+
+            Console.ReadKey();
         }
 
         static void PrintUsage()

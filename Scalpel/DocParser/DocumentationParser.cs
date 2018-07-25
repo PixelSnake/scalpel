@@ -43,6 +43,21 @@ namespace Scalpel.DocParser
                 FinalizeDatatypes(ns);
             namespaces = HierarchyzeNamespaces(namespaces);
 
+            foreach (var ns in namespaces)
+            {
+                Console.WriteLine(ns.Name);
+                foreach (var dt in ns.Datatypes)
+                {
+                    Console.WriteLine("\t" + dt);
+                    if (dt is Interchangeable.Class)
+                    {
+                        var c = dt as Interchangeable.Class;
+                        foreach (var f in c.Functions)
+                            Console.WriteLine("\t\t" + f);
+                    }
+                }
+            }
+
             return new Interchangeable.Documentation()
             {
                 Namespaces = namespaces.ToArray()
@@ -135,7 +150,7 @@ namespace Scalpel.DocParser
                     var end = FindClosingScope(content, start);
 
                     var inner = content.Substring(start + 1, end - start - 1);
-
+                    
                     dtypes.Add(new Interchangeable.Class()
                     {
                         AccessLevel = TrimToNullIfEmpty(m.Groups[1].Value) ?? "private",
@@ -149,8 +164,11 @@ namespace Scalpel.DocParser
                             ),
 
                         Info = ParseDocComment(BackTrackComments(content, m.Index)),
-                        Functions = ParseMembers(inner, m.Groups[6].Value).Where(mem => mem is Interchangeable.Function).ToArray() as Interchangeable.Function[]
-                    });
+                        Functions = ParseMembers(inner, m.Groups[6].Value)
+                            .Where(mem => mem is Interchangeable.Function)
+                            .Cast<Interchangeable.Function>()
+                            .ToArray()
+                });
 
                     pos = end + 1;
                 }
@@ -174,11 +192,21 @@ namespace Scalpel.DocParser
                 if (member == null) break;
 
                 var followingChar = content.Substring(pos).TrimStart()[0];
-                if (followingChar == ';' || followingChar == '=')
+                if (followingChar == ';')
                 {
                     // this member is a variable
                     // TODO
                     continue;
+                }
+                else if (followingChar == '=')
+                {
+                    var endOfDeclaration = content.IndexOf(';', pos);
+                    pos = endOfDeclaration > 0 ? endOfDeclaration : pos;
+                }
+                else if (followingChar == ',')
+                {
+                    var endOfDeclaration = content.IndexOf(';', pos);
+                    pos = endOfDeclaration > 0 ? endOfDeclaration : pos;
                 }
                 else if (member != null && followingChar == '(')
                 {
@@ -186,15 +214,15 @@ namespace Scalpel.DocParser
                     {
                         Name = member.Name,
                         AccessLevel = member.AccessLevel,
-                        Modifiers = member.Modifiers,
-                        TypeUnparsed = member.TypeUnparsed
+                        Modifiers = member.Modifiers.Select(m => m.Trim()).ToArray(),
+                        TypeUnparsed = member.TypeUnparsed.Trim()
                     };
 
                     pos = content.IndexOf('(', pos);
                     var paramListEnd = FindClosingScope(content, pos);
                     var paramList = content.Substring(pos + 1, paramListEnd - pos - 1);
 
-                    function.Parameters = ParseParamList(paramList).ToArray();
+                    function.Params = ParseParamList(paramList).ToArray();
                     function.Info = ParseDocComment(BackTrackComments(content, content.LastIndexOf('\n', pos)));
 
                     members.Add(function);
@@ -213,18 +241,39 @@ namespace Scalpel.DocParser
             return members;
         }
 
-        protected Interchangeable.ClassMember ParseNextMember(string content, string dtypeName, int inPos, out int outPos)
+        /// <summary>
+        /// Parses the next class member from the class body
+        /// </summary>
+        /// <param name="content">The body of the class</param>
+        /// <param name="dtypeName">The name of the class type or null</param>
+        /// <param name="inPos">The positin where the search starts</param>
+        /// <param name="outPos">The position where the search ended</param>
+        /// <param name="baseMember">
+        ///     If a member is declared as part of a multi-declaration, this contains all information about the type except for the name.
+        ///     If a name is specified, it is ignored.
+        /// </param>
+        /// <returns></returns>
+        protected Interchangeable.ClassMember ParseNextMember(
+            string content,
+            string dtypeName,
+            int inPos,
+            out int outPos,
+            Interchangeable.ClassMember baseMember = null)
         {
             var member = new Interchangeable.ClassMember();
             var modifiers = new List<string>();
+
+            if (baseMember != null)
+            {
+                baseMember.Name = null;
+                member = baseMember;
+            }
 
             while (true)
             {
                 var nextWord = getNextWord(inPos, out inPos);
                 if (nextWord != null)
                 {
-                    Console.WriteLine("nextWord: " + nextWord);
-
                     switch (nextWord)
                     {
                         case "private":
@@ -240,12 +289,15 @@ namespace Scalpel.DocParser
                         case "new":
                         case "readonly":
                         case "static":
+                        case "out":
+                        case "params":
+                        case "ref":
                             modifiers.Add(nextWord);
                             break;
 
                         default:
                             /* if nextWord is the constructor */
-                            if (nextWord == dtypeName)
+                            if (nextWord == dtypeName || nextWord == "Main")
                             {
                                 member.TypeUnparsed = "this";
                                 member.Name = nextWord;
@@ -289,28 +341,35 @@ namespace Scalpel.DocParser
             {
                 Match m;
 
-                while (true)
+                while (_inPos < content.Length)
                 {
                     var s = content.Substring(_inPos);
                     m = new Regex(@"(\s|[^<>\w.\[\]])").Match(s);
+                    string word;
+
                     if (m.Success)
+                        word = s.Substring(0, m.Index);
+                    else
+                        word = s;
+
+                    if (word.Length == 0)
                     {
-                        var word = s.Substring(0, m.Index);
-
-                        if (word.Length == 0)
-                        {
-                            _inPos = SkipNoCode(content, _inPos + 1);
-                            continue;
-                        }
-
-                        _inPos += m.Index;
-                        _inPos = SkipNoCode(content, _inPos);
-
-                        _outPos = _inPos;
-                        return word;
+                        _inPos = SkipNoCode(content, _inPos + 1);
+                        continue;
                     }
 
-                    break;
+                    if (m.Success)
+                    {
+                        _inPos += m.Index;
+                        _inPos = SkipNoCode(content, _inPos);
+                    }
+                    else
+                    {
+                        _inPos = content.Length;
+                    }
+
+                    _outPos = _inPos;
+                    return word;
                 }
 
                 _outPos = _inPos;
@@ -320,7 +379,45 @@ namespace Scalpel.DocParser
 
         protected List<Interchangeable.FunctionParameter> ParseParamList(string s)
         {
-            return new List<Interchangeable.FunctionParameter>();
+            var paramList = new List<Interchangeable.FunctionParameter>();
+            var pos = 0;
+
+            for (; pos < s.Length; ++pos)
+            {
+                var c = s[pos];
+
+                switch (c)
+                {
+                    case '(':
+                    case '[':
+                    case '<':
+                    case '{':
+                        pos = FindClosingScope(s, pos);
+                        break;
+
+                    default:
+                        if (c == ',' || pos == s.Length - 1)
+                        {
+                            if (pos == s.Length - 1) pos++;
+
+                            var param = ParseNextMember(s.Substring(0, pos), null, 0, out pos);
+                            if (param == null) break;
+
+                            paramList.Add(new Interchangeable.FunctionParameter()
+                            {
+                                TypeUnparsed = param.TypeUnparsed,
+                                Name = param.Name,
+                                Modifiers = param.Modifiers
+                            });
+
+                            if (pos < s.Length - 1) s = s.Substring(pos + 1).Trim();
+                            else s = "";
+                            pos = -1;
+                        }
+                        break;
+                }
+            }
+            return paramList;
         }
 
         protected string BackTrackComments(string content, int pos)
@@ -368,6 +465,8 @@ namespace Scalpel.DocParser
             {
                 case '{': closing = '}'; break;
                 case '(': closing = ')'; break;
+                case '[': closing = ']'; break;
+                case '<': closing = '>'; break;
                 default: return -1;
             }
 

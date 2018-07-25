@@ -10,8 +10,15 @@ namespace Scalpel.Interchangeable
     {
         public DocumentationInfo Info { get; set; }
 
-        public string Name, DatatypeUnparsed;
+        public string Name, TypeUnparsed;
         public string[] Modifiers;
         public string DefaultValue;
+
+        public override string ToString()
+        {
+            var modifiersString = String.Join(" ", Modifiers);
+            modifiersString = modifiersString.Length > 0 ? modifiersString + " " : "";
+            return $"{ modifiersString }{ TypeUnparsed } { Name }";
+        }
     }
 }

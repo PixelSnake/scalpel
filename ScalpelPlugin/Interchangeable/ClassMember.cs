@@ -12,7 +12,6 @@ namespace Scalpel.Interchangeable
 
         public string AccessLevel, Name, TypeUnparsed;
         public string[] Modifiers;
-        public FunctionParameter[] Parameters;
 
         public DocumentationInfo Info { get; set; }
         public Namespace Namespace { get; internal set; }
