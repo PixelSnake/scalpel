@@ -258,17 +258,20 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
                 var paramsInline = String.Join(", ", f.Params.Select(p => p.ToString()));
 
                 memFuncTex += @"\noindent \textbf{{\color{" + GetAccessLevelColor(f.AccessLevel) + @"}\textbf{\strut " + f.AccessLevel + @"}}} ";
-                memFuncTex += f.Name + " (" + TexEscape(paramsInline) + @") \\";
+                memFuncTex += @"\textbf{" + TexEscape(f.Name) + "} (" + TexEscape(paramsInline) + @") \\";
 
-                memFuncTex += @"
-                    \vspace{.05cm} \\
-                    \colorbox{LightLightGray}{
-					    \begin{tabularx}{\textwidth}{lX}
-						    " + (f.Info.Summary == null ? "" : @"\textbf{Summary} &" + TexifyFormattedText(f.Info.Summary, c.Namespace) + @" \\") + @"
-					    \end{tabularx}
-                    }
-                    \vspace{.2cm} \\
-                ";
+                if (!f.Info.IsEmpty)
+                {
+                    memFuncTex += @"
+                        \vspace{.01cm} \\
+                        \colorbox{LightLightGray}{
+					        \begin{tabularx}{\textwidth}{lX}
+						        " + (f.Info.Summary == null ? "" : @"\textbf{Summary} &" + TexifyFormattedText(f.Info.Summary, c.Namespace) + @" \\") + @"
+					        \end{tabularx}
+                        }
+                        \vspace{.2cm} \\
+                    ";
+                }
             }
 
             return memFuncTex;
@@ -290,8 +293,8 @@ public class Plugin : ScalpelPlugin.Plugins.Plugin
     string TexEscape(string s)
     {
         return s
+            .Replace(@"\", @"\\") // escaping backslash must be the very first thing to do
             .Replace("_", @"\_")
-            .Replace(@"\", @"\\")
             .Replace("%", @"\%")
             .Replace("<", @"\textless ")
             .Replace(">", @"\textgreater ");

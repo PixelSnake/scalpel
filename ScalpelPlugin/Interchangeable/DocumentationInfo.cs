@@ -12,5 +12,15 @@ namespace Scalpel.Interchangeable
         public ScalpelPlugin.Syntax.FormattedText Summary;
         public string Author;
         public Dictionary<string, string> TypeParamDescription;
+
+        public bool IsEmpty
+        {
+            get
+            {
+                return Summary == null
+                    && Author == null
+                    && TypeParamDescription?.Count == 0;
+            }
+        }
     }
 }
