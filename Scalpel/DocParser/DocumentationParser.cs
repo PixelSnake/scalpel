@@ -286,6 +286,7 @@ namespace Scalpel.DocParser
                         case "sealed":
                         case "abstract":
                         case "override":
+                        case "virtual":
                         case "new":
                         case "readonly":
                         case "static":
@@ -490,7 +491,7 @@ namespace Scalpel.DocParser
 
             pos--;
 
-            while (true)
+            while (pos < s.Length)
             {
                 pos++;
                 var subPos = s.Substring(pos);
